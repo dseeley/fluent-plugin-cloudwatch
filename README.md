@@ -268,6 +268,33 @@ Example output.
 2013-11-04T13:40:00+09:00       cloudwatch.rds      {"FreeStorageSpace":104080723968.0,"DBInstanceIdentifier":"rds01"}
 ```
 
+## config: group_by
+
+If `group_by` is specified, then instead of using the GetStatistics API call, the module uses the GetMetricData call, using the `group_by` dimension(s) in the MetricExpression.  This returns the specified other dimension(s) with the search result.
+
+```
+<source>
+  ...
+  namespace ContainerInsights
+  group_by PodName,Namespace,LaunchType,ClusterName
+  metric_name pod_cpu_usage_total,pod_memory_working_set,pod_network_rx_bytes,pod_network_tx_bytes
+  dimensions_name ClusterName,LaunchType
+  dimensions_value next-services,fargate
+  record_attr {"environment":"k8s.dev"}
+</source>
+```
+
+Example output:
+```
+{"pod_cpu_usage_total"=>0.20527949443108598, "PodName"=>"Other", "Namespace"=>"playground", "LaunchType"=>"fargate", "ClusterName"=>"next-services","environment":"k8s.dev","@timestamp":"2022-09-27T12:05:00.000000000+00:00"}
+{"pod_cpu_usage_total"=>1.1454683454692833, "PodName"=>"Other", "Namespace"=>"Other", "LaunchType"=>"fargate", "ClusterName"=>"next-services","environment":"k8s.dev","@timestamp":"2022-09-27T12:05:00.000000000+00:00"}
+...
+{"pod_network_tx_bytes"=>18.527281805563998, "PodName"=>"Other", "Namespace"=>"playground", "LaunchType"=>"fargate", "ClusterName"=>"next-services","environment":"k8s.dev","@timestamp":"2022-09-27T12:05:00.000000000+00:00"}
+{"pod_network_tx_bytes":8020.477370033135,"PodName":"Other","Namespace":"Other","LaunchType":"fargate","ClusterName":"next-services","environment":"k8s.dev","@timestamp":"2022-09-27T12:05:00.000000000+00:00"}
+
+```
+
+
 
 ## Contributing
 

@@ -1,6 +1,7 @@
 require 'fluent/input'
 require 'aws-sdk-cloudwatch'
 require 'uri'
+# require 'json'
 
 class Fluent::CloudwatchInput < Fluent::Input
   Fluent::Plugin.register_input("cloudwatch", self)
@@ -26,6 +27,7 @@ class Fluent::CloudwatchInput < Fluent::Input
   config_param :statistics,        :string, :default => "Average"
   config_param :dimensions_name,   :string, :default => nil
   config_param :dimensions_value,  :string, :default => nil
+  config_param :group_by,          :string, :default => nil
   config_param :period,            :integer, :default => 300
   config_param :interval,          :integer, :default => 300
   config_param :open_timeout,      :integer, :default => 10
@@ -39,6 +41,8 @@ class Fluent::CloudwatchInput < Fluent::Input
 
   def initialize
     super
+
+    @statistics_metricdata__map = {'SampleCount': 'COUNT', 'Average': 'AVG', 'Sum': 'SUM', 'Minimum': 'MIN', 'Maximum': 'MAX'}
   end
 
   def configure(conf)
@@ -128,14 +132,23 @@ class Fluent::CloudwatchInput < Fluent::Input
       :http_open_timeout => @open_timeout,
       :http_read_timeout => @read_timeout,
     )
-    output
+    if @group_by
+      output_metric_data
+    else
+      output_statistics
+    end
 
     started = Time.now
     while @running
       now = Time.now
       sleep 1
       if now - started >= @interval
-        output
+        if @group_by
+          output_metric_data
+        else
+          output_statistics
+        end
+
         started = now
         @mutex.synchronize do
           @updated = Time.now
@@ -144,10 +157,17 @@ class Fluent::CloudwatchInput < Fluent::Input
     end
   end
 
-  def output
+  def output_statistics
     @metric_name.split(",").each {|m|
       name, s = m.split(":")
       s ||= @statistics
+      if not @statistics_metricdata__map.has_key?(s.to_sym)
+        if @statistics_metricdata__map.has_value?(s)
+          s = @statistics_metricdata__map.key(s).to_s
+        else
+          log.warn("cloudwatch: statistics (#{s}) is not in the set #{@statistics_metricdata__map.keys}")
+        end
+      end
       now = Time.now - @offset
       log.debug("now #{now}")
       statistics = @cw.get_metric_statistics({
@@ -159,17 +179,70 @@ class Fluent::CloudwatchInput < Fluent::Input
         :end_time    => now.iso8601,
         :period      => @period,
       })
+      log.warn "cloudwatch (statistics): #{@namespace} #{@dimensions_name} #{@dimensions_value} #{s}: #{statistics}"
       if not statistics[:datapoints].empty?
         datapoint = statistics[:datapoints].sort_by{|h| h[:timestamp]}.last
         data = datapoint[s.downcase.to_sym]
 
-        # unix time
-        catch_time = datapoint[:timestamp].to_i
+        catch_time = datapoint[:timestamp].to_i     #unix time
         router.emit(tag, catch_time, { name => data }.merge(@record_attr))
       elsif @emit_zero
         router.emit(tag, now.to_i, { name => 0 }.merge(@record_attr))
       else
         log.warn "cloudwatch: #{@namespace} #{@dimensions_name} #{@dimensions_value} #{name} #{s} datapoints is empty"
+      end
+    }
+  end
+
+  def output_metric_data
+    @metric_name.split(",").each {|m|
+      name, stat = m.split(":")
+      stat ||= @statistics
+      if not @statistics_metricdata__map.has_value?(stat)
+        if @statistics_metricdata__map.has_key?(stat.to_sym)
+          stat = @statistics_metricdata__map[stat.to_sym]
+        else
+          log.warn("cloudwatch: statistics (#{stat}) is not in the set #{@statistics_metricdata__map.values}")
+        end
+      end
+      now = Time.now - @offset
+      log.debug("now #{now}")
+      metricdata = @cw.get_metric_data({
+        metric_data_queries: [
+          {
+            id: name,
+            # metric_stat: {
+              # metric: {
+                # namespace: @namespace,
+                # metric_name: name,
+                # dimensions: @dimensions
+              # },
+              # period: @period,
+              # stat: stat
+            # },
+            expression: "SELECT #{stat}(#{name}) FROM #{@namespace} GROUP BY #{@group_by}",
+            # label: JSON.generate(@record_attr),
+            return_data: true,
+            period: @period,
+          },
+        ],
+        start_time: (now - @period).iso8601,
+        end_time: now.iso8601
+      })
+      log.warn "cloudwatch (metricdata): #{@namespace} #{@dimensions_name} #{@dimensions_value} #{stat}: #{metricdata}"
+      if not metricdata[:metric_data_results].empty?
+        metricdata[:metric_data_results].each { |res|
+          res.timestamps.each_with_index do  |ts, tsIdx|
+            group_by_labels = @group_by.split(",").zip(res.label.split(" ")).to_h
+            datapoint = {name => res.values[tsIdx]}.merge(group_by_labels)
+
+            router.emit(tag, ts.to_i, datapoint.merge(@record_attr))
+          end
+        }
+      elsif @emit_zero
+        router.emit(tag, now.to_i, { name => 0 }.merge(@record_attr))
+      else
+        log.warn "cloudwatch: #{@namespace} #{@dimensions_name} #{@dimensions_value} #{name} #{stat} metric_data_results is empty"
       end
     }
   end
