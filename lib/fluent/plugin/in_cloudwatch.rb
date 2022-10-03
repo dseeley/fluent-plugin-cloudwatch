@@ -194,7 +194,7 @@ class Fluent::CloudwatchInput < Fluent::Input
         :end_time    => now.iso8601,
         :period      => @period,
       })
-      log.warn "cloudwatch (statistics): #{@namespace} #{@dimensions_name} #{@dimensions_value} #{s}: #{statistics}"
+      log.warn "cloudwatch (statistics): #{@namespace} #{@dimensions_name} #{@dimensions_value} #{s}"
       if not statistics[:datapoints].empty?
         datapoint = statistics[:datapoints].sort_by{|h| h[:timestamp]}.last
         data = datapoint[s.downcase.to_sym]
@@ -225,7 +225,7 @@ class Fluent::CloudwatchInput < Fluent::Input
       metricdata = @cw.get_metric_data({
         metric_data_queries: [
           {
-            id: name,
+            id: "id_#{name}",
             # metric_stat: {
               # metric: {
                 # namespace: @namespace,
@@ -235,7 +235,7 @@ class Fluent::CloudwatchInput < Fluent::Input
               # period: @period,
               # stat: stat
             # },
-            expression: "SELECT #{stat}(#{name}) FROM #{@namespace} GROUP BY #{@group_by}",
+            expression: "SELECT #{stat}(#{name}) FROM \"#{@namespace}\" GROUP BY #{@group_by}",
             # label: JSON.generate(@record_attr),
             return_data: true,
             period: @period,
@@ -244,7 +244,7 @@ class Fluent::CloudwatchInput < Fluent::Input
         start_time: (now - @period).iso8601,
         end_time: now.iso8601
       })
-      log.warn "cloudwatch (metricdata): #{@namespace} #{@dimensions_name} #{@dimensions_value} #{stat}: #{metricdata}"
+      log.warn "cloudwatch (metricdata): #{@namespace} #{@dimensions_name} #{@dimensions_value} #{stat}"
       if not metricdata[:metric_data_results].empty?
         metricdata[:metric_data_results].each { |res|
           res.timestamps.each_with_index do  |ts, tsIdx|
