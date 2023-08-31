@@ -279,7 +279,7 @@ Example output.
 
 ## config: group_by
 
-If `group_by` is specified, then instead of using the GetStatistics API call, the module uses the GetMetricData call, using the `group_by` dimension(s) in the MetricExpression.  This returns the specified other dimension(s) with the search result.
+If `group_by` is specified, then instead of using the `GetStatistics` API call, the module uses the `GetMetricData` call, using the `group_by` dimension(s) in the MetricExpression.  This returns the specified other dimension(s) with the search result.  Note: the `GetMetricData` API call has a cost associated with it.
 
 ```
 <source>
