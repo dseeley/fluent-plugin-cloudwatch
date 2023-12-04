@@ -147,6 +147,8 @@ module Fluent::Plugin
         :http_open_timeout => @open_timeout,
         :http_read_timeout => @read_timeout,
       )
+      log.warn "Aws::CloudWatch::Client.new: #{@cw}"
+
       if @group_by
         output_metric_data
       else
@@ -194,7 +196,7 @@ module Fluent::Plugin
           :end_time    => now.iso8601,
           :period      => @period,
         })
-        log.warn "cloudwatch (statistics): #{@namespace} #{@dimensions_name} #{@dimensions_value} #{s}"
+        log.warn "cloudwatch (statistics): #{@namespace} #{name} #{s} #{@dimensions}"
         if not statistics[:datapoints].empty?
           datapoint = statistics[:datapoints].sort_by{|h| h[:timestamp]}.last
           data = datapoint[s.downcase.to_sym]
@@ -204,7 +206,7 @@ module Fluent::Plugin
         elsif @emit_zero
           router.emit(tag, now.to_i, { name => 0 }.merge(@record_attr))
         else
-          log.warn "cloudwatch: #{@namespace} #{@dimensions_name} #{@dimensions_value} #{name} #{s} datapoints is empty"
+          log.warn "cloudwatch (statistics): #{@namespace} #{@dimensions_name} #{@dimensions_value} #{name} #{s} datapoints is empty"
         end
       }
     end
@@ -217,7 +219,7 @@ module Fluent::Plugin
           if @statistics_metricdata__map.has_key?(stat.to_sym)
             stat = @statistics_metricdata__map[stat.to_sym]
           else
-            log.warn("cloudwatch: statistics (#{stat}) is not in the set #{@statistics_metricdata__map.values}")
+            log.warn("cloudwatch (metricdata): (#{stat}) is not in the set #{@statistics_metricdata__map.values}")
           end
         end
         now = Time.now - @offset
@@ -226,15 +228,6 @@ module Fluent::Plugin
           metric_data_queries: [
             {
               id: "id_#{name}",
-              # metric_stat: {
-                # metric: {
-                  # namespace: @namespace,
-                  # metric_name: name,
-                  # dimensions: @dimensions
-                # },
-                # period: @period,
-                # stat: stat
-              # },
               expression: "SELECT #{stat}(#{name}) FROM \"#{@namespace}\" GROUP BY #{@group_by}",
               # label: JSON.generate(@record_attr),
               return_data: true,
@@ -244,7 +237,7 @@ module Fluent::Plugin
           start_time: (now - @period).iso8601,
           end_time: now.iso8601
         })
-        log.warn "cloudwatch (metricdata): #{@namespace} #{@dimensions_name} #{@dimensions_value} #{stat}"
+        log.debug "cloudwatch (metricdata): SELECT #{stat}(#{name}) FROM \"#{@namespace}\" GROUP BY #{@group_by}"
         if not metricdata[:metric_data_results].empty?
           metricdata[:metric_data_results].each { |res|
             res.timestamps.each_with_index do  |ts, tsIdx|
@@ -257,7 +250,7 @@ module Fluent::Plugin
         elsif @emit_zero
           router.emit(tag, now.to_i, { name => 0 }.merge(@record_attr))
         else
-          log.warn "cloudwatch: #{@namespace} #{@dimensions_name} #{@dimensions_value} #{name} #{stat} metric_data_results is empty"
+          log.warn "cloudwatch (metricdata) [SELECT #{stat}(#{name}) FROM \"#{@namespace}\" GROUP BY #{@group_by}]: metric_data_results is empty"
         end
       }
     end
