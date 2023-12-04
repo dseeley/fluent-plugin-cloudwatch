@@ -1,7 +1,6 @@
 require 'fluent/plugin/input'
 require 'aws-sdk-cloudwatch'
 require 'uri'
-require 'pp'
 
 module Fluent::Plugin
   class CloudwatchInput < Input
@@ -229,15 +228,6 @@ module Fluent::Plugin
           metric_data_queries: [
             {
               id: "id_#{name}",
-              # metric_stat: {
-                # metric: {
-                  # namespace: @namespace,
-                  # metric_name: name,
-                  # dimensions: @dimensions
-                # },
-                # period: @period,
-                # stat: stat
-              # },
               expression: "SELECT #{stat}(#{name}) FROM \"#{@namespace}\" GROUP BY #{@group_by}",
               # label: JSON.generate(@record_attr),
               return_data: true,
@@ -247,7 +237,7 @@ module Fluent::Plugin
           start_time: (now - @period).iso8601,
           end_time: now.iso8601
         })
-        log.warn "cloudwatch (metricdata): SELECT #{stat}(#{name}) FROM \"#{@namespace}\" GROUP BY #{@group_by}"
+        log.debug "cloudwatch (metricdata): SELECT #{stat}(#{name}) FROM \"#{@namespace}\" GROUP BY #{@group_by}"
         if not metricdata[:metric_data_results].empty?
           metricdata[:metric_data_results].each { |res|
             res.timestamps.each_with_index do  |ts, tsIdx|
@@ -260,7 +250,7 @@ module Fluent::Plugin
         elsif @emit_zero
           router.emit(tag, now.to_i, { name => 0 }.merge(@record_attr))
         else
-          log.warn "cloudwatch (metricdata): metric_data_results is empty"
+          log.warn "cloudwatch (metricdata) [SELECT #{stat}(#{name}) FROM \"#{@namespace}\" GROUP BY #{@group_by}]: metric_data_results is empty"
         end
       }
     end
