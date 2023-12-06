@@ -208,6 +208,15 @@ Note: Billing requires the us-east-1 endpoint
 2014-01-20 20:12:00 +0900 cloudwatch: {"CachePercentUsed":95.15519175634687}
 ```
 
+## config: STS login
+```config
+  @type cloudwatch
+  aws_use_sts true
+  aws_sts_role_arn arn:aws:iam::ACCOUNT-B:role/fluentd
+  ...
+```
+
+
 ## config: Complex metric_name
 
 `metric_name` format is allowed as below.
@@ -267,6 +276,33 @@ Example output.
 2017-11-04T13:40:00+09:00       cloudwatch.rds      {"CPUUtilization":2.0,"DBInstanceIdentifier":"rds01"}
 2013-11-04T13:40:00+09:00       cloudwatch.rds      {"FreeStorageSpace":104080723968.0,"DBInstanceIdentifier":"rds01"}
 ```
+
+## config: group_by
+
+If `group_by` is specified, then instead of using the `GetStatistics` API call, the module uses the `GetMetricData` call, using the `group_by` dimension(s) in the MetricExpression.  This returns the specified other dimension(s) with the search result.  Note: the `GetMetricData` API call has a cost associated with it.
+
+```
+<source>
+  ...
+  namespace ContainerInsights
+  group_by PodName,Namespace,LaunchType,ClusterName
+  metric_name pod_cpu_usage_total,pod_memory_working_set,pod_network_rx_bytes,pod_network_tx_bytes
+  dimensions_name ClusterName,LaunchType
+  dimensions_value next-services,fargate
+  record_attr {"environment":"k8s.dev"}
+</source>
+```
+
+Example output:
+```
+{"pod_cpu_usage_total"=>0.20527949443108598, "PodName"=>"Other", "Namespace"=>"playground", "LaunchType"=>"fargate", "ClusterName"=>"next-services","environment":"k8s.dev","@timestamp":"2022-09-27T12:05:00.000000000+00:00"}
+{"pod_cpu_usage_total"=>1.1454683454692833, "PodName"=>"Other", "Namespace"=>"Other", "LaunchType"=>"fargate", "ClusterName"=>"next-services","environment":"k8s.dev","@timestamp":"2022-09-27T12:05:00.000000000+00:00"}
+...
+{"pod_network_tx_bytes"=>18.527281805563998, "PodName"=>"Other", "Namespace"=>"playground", "LaunchType"=>"fargate", "ClusterName"=>"next-services","environment":"k8s.dev","@timestamp":"2022-09-27T12:05:00.000000000+00:00"}
+{"pod_network_tx_bytes":8020.477370033135,"PodName":"Other","Namespace":"Other","LaunchType":"fargate","ClusterName":"next-services","environment":"k8s.dev","@timestamp":"2022-09-27T12:05:00.000000000+00:00"}
+
+```
+
 
 
 ## Contributing
