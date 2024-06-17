@@ -300,8 +300,27 @@ Example output:
 ...
 {"pod_network_tx_bytes"=>18.527281805563998, "PodName"=>"Other", "Namespace"=>"playground", "LaunchType"=>"fargate", "ClusterName"=>"next-services","environment":"k8s.dev","@timestamp":"2022-09-27T12:05:00.000000000+00:00"}
 {"pod_network_tx_bytes":8020.477370033135,"PodName":"Other","Namespace":"Other","LaunchType":"fargate","ClusterName":"next-services","environment":"k8s.dev","@timestamp":"2022-09-27T12:05:00.000000000+00:00"}
+```
+
+
+## config: schema
+
+The namespace `schema`.
 
 ```
+<source>
+  ...
+  namespace ContainerInsights
+  schema PodName,Namespace,LaunchType,ClusterName
+  group_by PodName,Namespace,LaunchType,ClusterName
+  metric_name pod_cpu_usage_total,pod_memory_working_set,pod_network_rx_bytes,pod_network_tx_bytes
+  dimensions_name ClusterName,LaunchType
+  dimensions_value next-services,fargate
+  record_attr {"environment":"k8s.dev"}
+</source>
+```
+
+
 
 
 
