@@ -26,6 +26,7 @@ module Fluent::Plugin
     config_param :region,            :string, :default => nil
 
     config_param :namespace,         :string, :default => nil
+    config_param :schema,            :string, :default => nil
     config_param :metric_name,       :string, :default => nil
     config_param :statistics,        :string, :default => "Average"
     config_param :dimensions_name,   :string, :default => nil
@@ -224,11 +225,17 @@ module Fluent::Plugin
         end
         now = Time.now - @offset
         log.debug("now #{now}")
+        if @schema
+          expression = "SELECT #{stat}(#{name}) FROM SCHEMA(\"#{@namespace}\", #{@schema}) GROUP BY #{@group_by}"
+        else
+          expression = "SELECT #{stat}(#{name}) FROM \"#{@namespace}\" GROUP BY #{@group_by}"
+        end
+
         metricdata = @cw.get_metric_data({
           metric_data_queries: [
             {
               id: "id_#{name}",
-              expression: "SELECT #{stat}(#{name}) FROM \"#{@namespace}\" GROUP BY #{@group_by}",
+              expression: expression,
               # label: JSON.generate(@record_attr),
               return_data: true,
               period: @period,
@@ -237,7 +244,7 @@ module Fluent::Plugin
           start_time: (now - @period).iso8601,
           end_time: now.iso8601
         })
-        log.debug "cloudwatch (metricdata): SELECT #{stat}(#{name}) FROM \"#{@namespace}\" GROUP BY #{@group_by}"
+        log.debug "cloudwatch (metricdata) expression: #{expression}"
         if not metricdata[:metric_data_results].empty?
           metricdata[:metric_data_results].each { |res|
             res.timestamps.each_with_index do  |ts, tsIdx|
